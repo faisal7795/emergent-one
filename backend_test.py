@@ -11,7 +11,7 @@ import time
 from typing import Dict, List, Any
 
 # Configuration
-BASE_URL = "https://shopify-clone-126.preview.emergentagent.com/api"
+BASE_URL = "http://localhost:3000/api"
 
 class ShopifyCloneAPITester:
     def __init__(self):
