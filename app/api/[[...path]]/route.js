@@ -1,104 +1,507 @@
-import { MongoClient } from 'mongodb'
-import { v4 as uuidv4 } from 'uuid'
-import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server';
+import { MongoClient, ObjectId } from 'mongodb';
+import { v4 as uuidv4 } from 'uuid';
 
-// MongoDB connection
-let client
-let db
+let client = null;
+let db = null;
 
-async function connectToMongo() {
+async function connectToDatabase() {
   if (!client) {
-    client = new MongoClient(process.env.MONGO_URL)
-    await client.connect()
-    db = client.db(process.env.DB_NAME)
+    client = new MongoClient(process.env.MONGO_URL);
+    await client.connect();
+    db = client.db(process.env.DB_NAME || 'shopify_clone');
   }
-  return db
+  return db;
 }
 
-// Helper function to handle CORS
-function handleCORS(response) {
-  response.headers.set('Access-Control-Allow-Origin', process.env.CORS_ORIGINS || '*')
-  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-  response.headers.set('Access-Control-Allow-Credentials', 'true')
-  return response
+// Helper function to generate slug from name
+function generateSlug(name) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
 }
 
-// OPTIONS handler for CORS
-export async function OPTIONS() {
-  return handleCORS(new NextResponse(null, { status: 200 }))
+// Helper function to validate store access
+async function validateStoreAccess(storeId, userId = null) {
+  const database = await connectToDatabase();
+  const store = await database.collection('stores').findOne({ 
+    id: storeId,
+    isActive: true 
+  });
+  return !!store;
 }
 
-// Route handler function
-async function handleRoute(request, { params }) {
-  const { path = [] } = params
-  const route = `/${path.join('/')}`
-  const method = request.method
-
+// API Routes Handler
+export async function GET(request) {
+  const { pathname } = new URL(request.url);
+  const segments = pathname.split('/').filter(Boolean);
+  
   try {
-    const db = await connectToMongo()
-
-    // Root endpoint - GET /api/root (since /api/ is not accessible with catch-all)
-    if (route === '/root' && method === 'GET') {
-      return handleCORS(NextResponse.json({ message: "Hello World" }))
+    const database = await connectToDatabase();
+    
+    // Root API endpoint
+    if (segments.length <= 1) {
+      return NextResponse.json({ message: 'Shopify Clone API Ready' });
     }
-    // Root endpoint - GET /api/root (since /api/ is not accessible with catch-all)
-    if (route === '/' && method === 'GET') {
-      return handleCORS(NextResponse.json({ message: "Hello World" }))
+    
+    const apiPath = segments.slice(1); // Remove 'api' segment
+    const [resource, storeId, subResource, itemId] = apiPath;
+    
+    switch (resource) {
+      case 'stores':
+        if (!storeId) {
+          // GET /api/stores - List all stores
+          const stores = await database.collection('stores')
+            .find({ isActive: true })
+            .sort({ createdAt: -1 })
+            .toArray();
+          
+          return NextResponse.json(stores);
+        } else {
+          // GET /api/stores/:id - Get specific store
+          const store = await database.collection('stores').findOne({ 
+            id: storeId,
+            isActive: true 
+          });
+          
+          if (!store) {
+            return NextResponse.json({ error: 'Store not found' }, { status: 404 });
+          }
+          
+          return NextResponse.json(store);
+        }
+        
+      case 'products':
+        if (storeId) {
+          // GET /api/products/:storeId - Get products for a store
+          const { searchParams } = new URL(request.url);
+          const page = parseInt(searchParams.get('page') || '1');
+          const limit = parseInt(searchParams.get('limit') || '10');
+          const search = searchParams.get('search') || '';
+          
+          const skip = (page - 1) * limit;
+          
+          let query = { storeId, isActive: true };
+          if (search) {
+            query.$or = [
+              { name: { $regex: search, $options: 'i' } },
+              { description: { $regex: search, $options: 'i' } }
+            ];
+          }
+          
+          const [products, total] = await Promise.all([
+            database.collection('products')
+              .find(query)
+              .sort({ createdAt: -1 })
+              .skip(skip)
+              .limit(limit)
+              .toArray(),
+            database.collection('products').countDocuments(query)
+          ]);
+          
+          return NextResponse.json({
+            products,
+            meta: {
+              total,
+              page,
+              limit,
+              totalPages: Math.ceil(total / limit)
+            }
+          });
+        }
+        break;
+        
+      case 'orders':
+        if (storeId) {
+          // GET /api/orders/:storeId - Get orders for a store
+          const { searchParams } = new URL(request.url);
+          const page = parseInt(searchParams.get('page') || '1');
+          const limit = parseInt(searchParams.get('limit') || '10');
+          const status = searchParams.get('status');
+          
+          const skip = (page - 1) * limit;
+          
+          let query = { storeId };
+          if (status) {
+            query.status = status;
+          }
+          
+          const [orders, total] = await Promise.all([
+            database.collection('orders')
+              .find(query)
+              .sort({ createdAt: -1 })
+              .skip(skip)
+              .limit(limit)
+              .toArray(),
+            database.collection('orders').countDocuments(query)
+          ]);
+          
+          return NextResponse.json({
+            orders,
+            meta: {
+              total,
+              page,
+              limit,
+              totalPages: Math.ceil(total / limit)
+            }
+          });
+        }
+        break;
+        
+      case 'storefront':
+        if (storeId) {
+          // GET /api/storefront/:storeSlug - Get storefront data
+          const store = await database.collection('stores').findOne({ 
+            slug: storeId, // Using storeId as slug here
+            isActive: true 
+          });
+          
+          if (!store) {
+            return NextResponse.json({ error: 'Store not found' }, { status: 404 });
+          }
+          
+          const products = await database.collection('products')
+            .find({ storeId: store.id, isActive: true })
+            .sort({ createdAt: -1 })
+            .limit(20)
+            .toArray();
+          
+          return NextResponse.json({ store, products });
+        }
+        break;
+        
+      default:
+        return NextResponse.json({ error: 'Endpoint not found' }, { status: 404 });
     }
-
-    // Status endpoints - POST /api/status
-    if (route === '/status' && method === 'POST') {
-      const body = await request.json()
-      
-      if (!body.client_name) {
-        return handleCORS(NextResponse.json(
-          { error: "client_name is required" }, 
-          { status: 400 }
-        ))
-      }
-
-      const statusObj = {
-        id: uuidv4(),
-        client_name: body.client_name,
-        timestamp: new Date()
-      }
-
-      await db.collection('status_checks').insertOne(statusObj)
-      return handleCORS(NextResponse.json(statusObj))
-    }
-
-    // Status endpoints - GET /api/status
-    if (route === '/status' && method === 'GET') {
-      const statusChecks = await db.collection('status_checks')
-        .find({})
-        .limit(1000)
-        .toArray()
-
-      // Remove MongoDB's _id field from response
-      const cleanedStatusChecks = statusChecks.map(({ _id, ...rest }) => rest)
-      
-      return handleCORS(NextResponse.json(cleanedStatusChecks))
-    }
-
-    // Route not found
-    return handleCORS(NextResponse.json(
-      { error: `Route ${route} not found` }, 
-      { status: 404 }
-    ))
-
+    
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    
   } catch (error) {
-    console.error('API Error:', error)
-    return handleCORS(NextResponse.json(
-      { error: "Internal server error" }, 
-      { status: 500 }
-    ))
+    console.error('API Error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// Export all HTTP methods
-export const GET = handleRoute
-export const POST = handleRoute
-export const PUT = handleRoute
-export const DELETE = handleRoute
-export const PATCH = handleRoute
+export async function POST(request) {
+  const { pathname } = new URL(request.url);
+  const segments = pathname.split('/').filter(Boolean);
+  const apiPath = segments.slice(1); // Remove 'api' segment
+  const [resource, storeId, subResource] = apiPath;
+  
+  try {
+    const database = await connectToDatabase();
+    const body = await request.json();
+    
+    switch (resource) {
+      case 'stores':
+        // POST /api/stores - Create new store
+        const { name, description, domain } = body;
+        
+        if (!name) {
+          return NextResponse.json({ error: 'Store name is required' }, { status: 400 });
+        }
+        
+        const slug = generateSlug(name);
+        
+        // Check if slug already exists
+        const existingStore = await database.collection('stores').findOne({ slug });
+        if (existingStore) {
+          return NextResponse.json({ error: 'Store name already taken' }, { status: 400 });
+        }
+        
+        const newStore = {
+          id: uuidv4(),
+          name,
+          slug,
+          description: description || '',
+          domain: domain || null,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        
+        await database.collection('stores').insertOne(newStore);
+        
+        return NextResponse.json(newStore, { status: 201 });
+        
+      case 'products':
+        if (storeId) {
+          // POST /api/products/:storeId - Create product for store
+          const { name, description, price, inventory, images } = body;
+          
+          if (!name || price === undefined) {
+            return NextResponse.json({ 
+              error: 'Product name and price are required' 
+            }, { status: 400 });
+          }
+          
+          // Validate store exists
+          const storeExists = await validateStoreAccess(storeId);
+          if (!storeExists) {
+            return NextResponse.json({ error: 'Store not found' }, { status: 404 });
+          }
+          
+          const productSlug = generateSlug(name);
+          
+          // Check if product slug exists within this store
+          const existingProduct = await database.collection('products').findOne({
+            storeId,
+            slug: productSlug
+          });
+          
+          if (existingProduct) {
+            return NextResponse.json({ 
+              error: 'Product with this name already exists in store' 
+            }, { status: 400 });
+          }
+          
+          const newProduct = {
+            id: uuidv4(),
+            name,
+            slug: productSlug,
+            description: description || '',
+            price: parseFloat(price),
+            inventory: parseInt(inventory) || 0,
+            images: images || [],
+            isActive: true,
+            storeId,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+          
+          await database.collection('products').insertOne(newProduct);
+          
+          return NextResponse.json(newProduct, { status: 201 });
+        }
+        break;
+        
+      case 'orders':
+        if (storeId) {
+          // POST /api/orders/:storeId - Create order for store
+          const { items, customerInfo, total } = body;
+          
+          if (!items || !Array.isArray(items) || items.length === 0) {
+            return NextResponse.json({ 
+              error: 'Order items are required' 
+            }, { status: 400 });
+          }
+          
+          // Validate store exists
+          const storeExists = await validateStoreAccess(storeId);
+          if (!storeExists) {
+            return NextResponse.json({ error: 'Store not found' }, { status: 404 });
+          }
+          
+          // Validate products exist
+          const productIds = items.map(item => item.productId);
+          const products = await database.collection('products')
+            .find({ 
+              id: { $in: productIds },
+              storeId,
+              isActive: true 
+            })
+            .toArray();
+          
+          if (products.length !== productIds.length) {
+            return NextResponse.json({ 
+              error: 'One or more products not found' 
+            }, { status: 400 });
+          }
+          
+          // Calculate total if not provided
+          let calculatedTotal = 0;
+          const orderItems = items.map(item => {
+            const product = products.find(p => p.id === item.productId);
+            const itemTotal = product.price * item.quantity;
+            calculatedTotal += itemTotal;
+            
+            return {
+              productId: item.productId,
+              productName: product.name,
+              quantity: item.quantity,
+              price: product.price,
+              total: itemTotal
+            };
+          });
+          
+          const orderNumber = `ORD-${Date.now().toString().slice(-8)}`;
+          
+          const newOrder = {
+            id: uuidv4(),
+            orderNumber,
+            storeId,
+            items: orderItems,
+            total: total || calculatedTotal,
+            status: 'pending',
+            customerInfo: customerInfo || {},
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+          
+          await database.collection('orders').insertOne(newOrder);
+          
+          return NextResponse.json(newOrder, { status: 201 });
+        }
+        break;
+        
+      default:
+        return NextResponse.json({ error: 'Endpoint not found' }, { status: 404 });
+    }
+    
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    
+  } catch (error) {
+    console.error('POST API Error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function PUT(request) {
+  const { pathname } = new URL(request.url);
+  const segments = pathname.split('/').filter(Boolean);
+  const apiPath = segments.slice(1); // Remove 'api' segment
+  const [resource, storeId, subResource, itemId] = apiPath;
+  
+  try {
+    const database = await connectToDatabase();
+    const body = await request.json();
+    
+    switch (resource) {
+      case 'products':
+        if (storeId && subResource && itemId) {
+          // PUT /api/products/:storeId/:itemId - Update product
+          const { name, description, price, inventory, images, isActive } = body;
+          
+          // Validate store exists
+          const storeExists = await validateStoreAccess(storeId);
+          if (!storeExists) {
+            return NextResponse.json({ error: 'Store not found' }, { status: 404 });
+          }
+          
+          const updateData = {
+            updatedAt: new Date()
+          };
+          
+          if (name) {
+            updateData.name = name;
+            updateData.slug = generateSlug(name);
+          }
+          if (description !== undefined) updateData.description = description;
+          if (price !== undefined) updateData.price = parseFloat(price);
+          if (inventory !== undefined) updateData.inventory = parseInt(inventory);
+          if (images !== undefined) updateData.images = images;
+          if (isActive !== undefined) updateData.isActive = isActive;
+          
+          const result = await database.collection('products').updateOne(
+            { id: itemId, storeId },
+            { $set: updateData }
+          );
+          
+          if (result.matchedCount === 0) {
+            return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+          }
+          
+          const updatedProduct = await database.collection('products').findOne({ 
+            id: itemId, 
+            storeId 
+          });
+          
+          return NextResponse.json(updatedProduct);
+        }
+        break;
+        
+      case 'orders':
+        if (storeId && subResource && itemId) {
+          // PUT /api/orders/:storeId/:itemId - Update order status
+          const { status } = body;
+          
+          if (!status) {
+            return NextResponse.json({ error: 'Status is required' }, { status: 400 });
+          }
+          
+          // Validate store exists
+          const storeExists = await validateStoreAccess(storeId);
+          if (!storeExists) {
+            return NextResponse.json({ error: 'Store not found' }, { status: 404 });
+          }
+          
+          const result = await database.collection('orders').updateOne(
+            { id: itemId, storeId },
+            { 
+              $set: { 
+                status,
+                updatedAt: new Date()
+              }
+            }
+          );
+          
+          if (result.matchedCount === 0) {
+            return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+          }
+          
+          const updatedOrder = await database.collection('orders').findOne({ 
+            id: itemId, 
+            storeId 
+          });
+          
+          return NextResponse.json(updatedOrder);
+        }
+        break;
+        
+      default:
+        return NextResponse.json({ error: 'Endpoint not found' }, { status: 404 });
+    }
+    
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    
+  } catch (error) {
+    console.error('PUT API Error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request) {
+  const { pathname } = new URL(request.url);
+  const segments = pathname.split('/').filter(Boolean);
+  const apiPath = segments.slice(1); // Remove 'api' segment
+  const [resource, storeId, subResource, itemId] = apiPath;
+  
+  try {
+    const database = await connectToDatabase();
+    
+    switch (resource) {
+      case 'products':
+        if (storeId && subResource && itemId) {
+          // DELETE /api/products/:storeId/:itemId - Delete product
+          
+          // Validate store exists
+          const storeExists = await validateStoreAccess(storeId);
+          if (!storeExists) {
+            return NextResponse.json({ error: 'Store not found' }, { status: 404 });
+          }
+          
+          const result = await database.collection('products').deleteOne({
+            id: itemId,
+            storeId
+          });
+          
+          if (result.deletedCount === 0) {
+            return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+          }
+          
+          return NextResponse.json({ success: true });
+        }
+        break;
+        
+      default:
+        return NextResponse.json({ error: 'Endpoint not found' }, { status: 404 });
+    }
+    
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    
+  } catch (error) {
+    console.error('DELETE API Error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
