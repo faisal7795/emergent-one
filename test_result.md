@@ -171,11 +171,14 @@ backend:
     file: "/app/app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Public storefront API for displaying store and products by slug."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED AND WORKING: Storefront API GET /api/storefront/{slug} returns complete store data with products. Proper 404 handling for non-existent stores. Data structure includes both store information and associated products."
 
 frontend:
   - task: "Admin Dashboard UI"
