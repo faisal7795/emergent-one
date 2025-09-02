@@ -305,10 +305,9 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Image Upload API"
+  current_focus: []
   stuck_tasks: []
-  test_all: true
+  test_all: false
   test_priority: "high_first"
 
   - task: "Analytics Dashboard UI"
