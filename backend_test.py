@@ -331,38 +331,48 @@ class ShopifyCloneAPITester:
         """Test order creation and management"""
         self.log("Testing Order Management APIs...")
         
-        if len(self.test_stores) < 1 or len(self.test_products) < 1:
-            self.log("❌ Need stores and products for order testing", "ERROR")
+        if len(self.test_stores) < 1:
+            self.log("❌ Need stores for order testing", "ERROR")
             return False
             
         store_id = self.test_stores[0]['id']
         
-        # Create additional product for multi-item order
-        product_data = {
-            "name": "MacBook Pro",
-            "description": "High-performance laptop",
-            "price": 2499.99,
+        # Create fresh products for order testing
+        product_data1 = {
+            "name": "Order Test Product 1",
+            "description": "Product for order testing",
+            "price": 99.99,
             "inventory": 10,
-            "images": ["macbook.jpg"]
+            "images": ["product1.jpg"]
         }
         
-        result = self.make_request('POST', f'/products/{store_id}', product_data)
-        if not result['success']:
-            self.log("❌ Additional product creation for order test failed", "ERROR")
+        product_data2 = {
+            "name": "Order Test Product 2", 
+            "description": "Second product for order testing",
+            "price": 199.99,
+            "inventory": 5,
+            "images": ["product2.jpg"]
+        }
+        
+        result1 = self.make_request('POST', f'/products/{store_id}', product_data1)
+        result2 = self.make_request('POST', f'/products/{store_id}', product_data2)
+        
+        if not (result1['success'] and result2['success']):
+            self.log("❌ Product creation for order test failed", "ERROR")
             return False
             
-        additional_product = result['data']
-        self.test_products.append(additional_product)
+        product1 = result1['data']
+        product2 = result2['data']
         
         # Test order creation with multiple items
         order_data = {
             "items": [
                 {
-                    "productId": self.test_products[-1]['id'],  # Designer Jacket or MacBook
+                    "productId": product1['id'],
                     "quantity": 2
                 },
                 {
-                    "productId": additional_product['id'],
+                    "productId": product2['id'],
                     "quantity": 1
                 }
             ],
