@@ -898,6 +898,9 @@ class ShopifyCloneAPITester:
         # Test Multi-tenancy Isolation
         test_results['multi_tenancy'] = self.test_multi_tenancy_isolation()
         
+        # Test Image Upload Functionality
+        test_results['image_upload'] = self.test_image_upload_functionality()
+        
         # Summary
         self.log("=" * 60)
         self.log("TEST RESULTS SUMMARY:")
