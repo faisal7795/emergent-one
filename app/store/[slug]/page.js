@@ -396,7 +396,7 @@ export default function StorefrontPage() {
                       Continue Shopping
                     </Button>
                     <Button onClick={checkout}>
-                      Place Order (${getCartTotal()})
+                      Pay ₹{getCartTotal()} with Razorpay
                     </Button>
                   </DialogFooter>
                 )}
