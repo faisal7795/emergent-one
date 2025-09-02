@@ -369,7 +369,8 @@ function ProductManagement({ storeId }) {
     name: '',
     description: '',
     price: '',
-    inventory: ''
+    inventory: '',
+    images: []
   });
 
   useEffect(() => {
