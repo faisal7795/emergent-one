@@ -11,7 +11,15 @@ import time
 from typing import Dict, List, Any
 
 # Configuration
-BASE_URL = "http://localhost:3000/api"
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Get base URL from environment
+NEXT_PUBLIC_BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'http://localhost:3000')
+BASE_URL = f"{NEXT_PUBLIC_BASE_URL}/api"
 
 class ShopifyCloneAPITester:
     def __init__(self):
