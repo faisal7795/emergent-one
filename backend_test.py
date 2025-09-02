@@ -876,6 +876,321 @@ class ShopifyCloneAPITester:
         
         return True
     
+    def test_razorpay_payment_integration(self) -> bool:
+        """Test Razorpay payment integration functionality"""
+        self.log("Testing Razorpay Payment Integration...")
+        
+        if len(self.test_stores) < 1:
+            self.log("❌ Need stores for payment testing", "ERROR")
+            return False
+            
+        store_id = self.test_stores[0]['id']
+        
+        # Test 1: Create Razorpay order
+        self.log("Testing Razorpay order creation...")
+        order_data = {
+            "amount": 100.50,  # ₹100.50
+            "currency": "INR",
+            "receipt": f"receipt_{int(time.time())}",
+            "notes": {
+                "customer_name": "John Doe",
+                "product": "Test Product"
+            },
+            "storeId": store_id
+        }
+        
+        result = self.make_request('POST', '/payment/create-order', order_data)
+        if not result['success']:
+            self.log("❌ Razorpay order creation failed", "ERROR")
+            return False
+            
+        payment_order = result['data']
+        if 'order' not in payment_order or 'id' not in payment_order['order']:
+            self.log("❌ Payment order response should contain order with id", "ERROR")
+            return False
+            
+        razorpay_order_id = payment_order['order']['id']
+        self.log(f"✅ Razorpay order created: {razorpay_order_id}")
+        
+        # Test 2: Create order with missing required fields
+        self.log("Testing order creation validation...")
+        invalid_order_data = {
+            "currency": "INR"
+            # Missing amount and receipt
+        }
+        
+        result = self.make_request('POST', '/payment/create-order', invalid_order_data)
+        if result['status_code'] != 400:
+            self.log("❌ Invalid payment order data should return 400", "ERROR")
+            return False
+            
+        self.log("✅ Payment order validation working correctly")
+        
+        # Test 3: Payment verification (simulate successful payment)
+        self.log("Testing payment verification...")
+        
+        # Create a test order in our system first
+        test_product_data = {
+            "name": "Payment Test Product",
+            "description": "Product for payment testing",
+            "price": 100.50,
+            "inventory": 10
+        }
+        
+        product_result = self.make_request('POST', f'/products/{store_id}', test_product_data)
+        if not product_result['success']:
+            self.log("❌ Failed to create test product for payment", "ERROR")
+            return False
+            
+        test_product = product_result['data']
+        
+        # Create order
+        test_order_data = {
+            "items": [{"productId": test_product['id'], "quantity": 1}],
+            "customerInfo": {"name": "Payment Test Customer", "email": "test@example.com"}
+        }
+        
+        order_result = self.make_request('POST', f'/orders/{store_id}', test_order_data)
+        if not order_result['success']:
+            self.log("❌ Failed to create test order for payment", "ERROR")
+            return False
+            
+        test_order = order_result['data']
+        
+        # Test payment verification with invalid signature (should fail)
+        verification_data = {
+            "razorpay_order_id": razorpay_order_id,
+            "razorpay_payment_id": "pay_test123456789",
+            "razorpay_signature": "invalid_signature",
+            "orderId": test_order['id'],
+            "storeId": store_id
+        }
+        
+        result = self.make_request('POST', '/payment/verify', verification_data)
+        if result['success']:
+            self.log("❌ Payment verification with invalid signature should fail", "ERROR")
+            return False
+            
+        self.log("✅ Payment verification properly rejects invalid signatures")
+        
+        # Test 4: Payment verification with missing parameters
+        self.log("Testing payment verification validation...")
+        incomplete_verification = {
+            "razorpay_order_id": razorpay_order_id
+            # Missing other required fields
+        }
+        
+        result = self.make_request('POST', '/payment/verify', incomplete_verification)
+        if result['status_code'] != 400:
+            self.log("❌ Incomplete payment verification should return 400", "ERROR")
+            return False
+            
+        self.log("✅ Payment verification validation working correctly")
+        
+        # Test 5: Payment verification for non-existent order
+        self.log("Testing payment verification for non-existent order...")
+        fake_order_verification = {
+            "razorpay_order_id": razorpay_order_id,
+            "razorpay_payment_id": "pay_test123456789",
+            "razorpay_signature": "test_signature",
+            "orderId": str(uuid.uuid4()),  # Non-existent order
+            "storeId": store_id
+        }
+        
+        result = self.make_request('POST', '/payment/verify', fake_order_verification)
+        if result['status_code'] != 404:
+            self.log("❌ Payment verification for non-existent order should return 404", "ERROR")
+            return False
+            
+        self.log("✅ Payment verification properly handles non-existent orders")
+        
+        return True
+    
+    def test_analytics_dashboard_api(self) -> bool:
+        """Test Analytics Dashboard API functionality"""
+        self.log("Testing Analytics Dashboard API...")
+        
+        if len(self.test_stores) < 1:
+            self.log("❌ Need stores for analytics testing", "ERROR")
+            return False
+            
+        store_id = self.test_stores[0]['id']
+        
+        # Test 1: Basic analytics retrieval
+        self.log("Testing basic analytics retrieval...")
+        result = self.make_request('GET', f'/analytics/{store_id}')
+        if not result['success']:
+            self.log("❌ Analytics retrieval failed", "ERROR")
+            return False
+            
+        analytics_data = result['data']
+        
+        # Verify analytics structure
+        required_fields = ['summary', 'topProducts', 'recentOrders', 'chartData']
+        for field in required_fields:
+            if field not in analytics_data:
+                self.log(f"❌ Analytics data missing required field: {field}", "ERROR")
+                return False
+                
+        self.log("✅ Analytics data structure verified")
+        
+        # Test 2: Analytics summary fields
+        self.log("Testing analytics summary fields...")
+        summary = analytics_data['summary']
+        required_summary_fields = ['totalOrders', 'totalRevenue', 'completedOrders', 'pendingOrders', 'totalProducts', 'conversionRate']
+        
+        for field in required_summary_fields:
+            if field not in summary:
+                self.log(f"❌ Analytics summary missing field: {field}", "ERROR")
+                return False
+            if not isinstance(summary[field], (int, float, str)):
+                self.log(f"❌ Analytics summary field {field} has invalid type", "ERROR")
+                return False
+                
+        self.log("✅ Analytics summary fields verified")
+        
+        # Test 3: Analytics with different time periods
+        self.log("Testing analytics with different time periods...")
+        time_periods = ['7', '30', '90', '365']
+        
+        for period in time_periods:
+            result = self.make_request('GET', f'/analytics/{store_id}', params={'period': period})
+            if not result['success']:
+                self.log(f"❌ Analytics retrieval failed for period {period}", "ERROR")
+                return False
+                
+            period_analytics = result['data']
+            if 'summary' not in period_analytics:
+                self.log(f"❌ Analytics for period {period} missing summary", "ERROR")
+                return False
+                
+        self.log("✅ Analytics time period filtering working")
+        
+        # Test 4: Analytics for non-existent store
+        self.log("Testing analytics for non-existent store...")
+        fake_store_id = str(uuid.uuid4())
+        result = self.make_request('GET', f'/analytics/{fake_store_id}')
+        if result['status_code'] != 404:
+            self.log("❌ Analytics for non-existent store should return 404", "ERROR")
+            return False
+            
+        self.log("✅ Analytics properly handles non-existent stores")
+        
+        # Test 5: Create some test data and verify analytics calculation
+        self.log("Testing analytics calculation with test data...")
+        
+        # Create test products
+        test_products = []
+        for i in range(3):
+            product_data = {
+                "name": f"Analytics Test Product {i+1}",
+                "description": f"Product {i+1} for analytics testing",
+                "price": (i+1) * 50.0,  # $50, $100, $150
+                "inventory": 20
+            }
+            
+            result = self.make_request('POST', f'/products/{store_id}', product_data)
+            if result['success']:
+                test_products.append(result['data'])
+                
+        if len(test_products) < 3:
+            self.log("❌ Failed to create test products for analytics", "ERROR")
+            return False
+            
+        # Create test orders with different statuses
+        test_orders = []
+        order_statuses = ['pending', 'paid', 'completed']
+        
+        for i, status in enumerate(order_statuses):
+            order_data = {
+                "items": [{"productId": test_products[i]['id'], "quantity": 2}],
+                "customerInfo": {"name": f"Analytics Customer {i+1}", "email": f"customer{i+1}@test.com"}
+            }
+            
+            result = self.make_request('POST', f'/orders/{store_id}', order_data)
+            if result['success']:
+                order = result['data']
+                test_orders.append(order)
+                
+                # Update order status if not pending
+                if status != 'pending':
+                    status_update = {"status": status}
+                    self.make_request('PUT', f'/orders/{store_id}/order/{order["id"]}', status_update)
+                    
+        if len(test_orders) < 3:
+            self.log("❌ Failed to create test orders for analytics", "ERROR")
+            return False
+            
+        # Wait a moment for data to be processed
+        time.sleep(1)
+        
+        # Retrieve updated analytics
+        result = self.make_request('GET', f'/analytics/{store_id}')
+        if not result['success']:
+            self.log("❌ Failed to retrieve updated analytics", "ERROR")
+            return False
+            
+        updated_analytics = result['data']
+        updated_summary = updated_analytics['summary']
+        
+        # Verify analytics reflect the test data
+        if updated_summary['totalOrders'] < len(test_orders):
+            self.log("❌ Analytics total orders should include test orders", "ERROR")
+            return False
+            
+        if updated_summary['totalProducts'] < len(test_products):
+            self.log("❌ Analytics total products should include test products", "ERROR")
+            return False
+            
+        # Check that completed/paid orders contribute to revenue
+        if updated_summary['totalRevenue'] <= 0 and updated_summary['completedOrders'] > 0:
+            self.log("❌ Analytics should show revenue for completed orders", "ERROR")
+            return False
+            
+        self.log("✅ Analytics calculation verified with test data")
+        
+        # Test 6: Top products analytics
+        self.log("Testing top products analytics...")
+        top_products = updated_analytics['topProducts']
+        
+        if not isinstance(top_products, list):
+            self.log("❌ Top products should be a list", "ERROR")
+            return False
+            
+        # If we have top products, verify structure
+        if len(top_products) > 0:
+            top_product = top_products[0]
+            required_top_product_fields = ['_id', 'name', 'totalQuantity', 'totalRevenue']
+            
+            for field in required_top_product_fields:
+                if field not in top_product:
+                    self.log(f"❌ Top product missing field: {field}", "ERROR")
+                    return False
+                    
+        self.log("✅ Top products analytics structure verified")
+        
+        # Test 7: Chart data analytics
+        self.log("Testing chart data analytics...")
+        chart_data = updated_analytics['chartData']
+        
+        if not isinstance(chart_data, list):
+            self.log("❌ Chart data should be a list", "ERROR")
+            return False
+            
+        # If we have chart data, verify structure
+        if len(chart_data) > 0:
+            chart_item = chart_data[0]
+            required_chart_fields = ['date', 'sales', 'orders']
+            
+            for field in required_chart_fields:
+                if field not in chart_item:
+                    self.log(f"❌ Chart data item missing field: {field}", "ERROR")
+                    return False
+                    
+        self.log("✅ Chart data analytics structure verified")
+        
+        return True
+    
     def run_all_tests(self) -> Dict[str, bool]:
         """Run all backend tests and return results"""
         self.log("Starting Comprehensive Backend API Tests...")
