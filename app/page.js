@@ -519,6 +519,15 @@ function ProductManagement({ storeId }) {
                     />
                   </div>
                 </div>
+                <div>
+                  <Label>Product Images</Label>
+                  <ImageUpload
+                    storeId={storeId}
+                    currentImages={newProduct.images.map(url => ({ url }))}
+                    onImagesChange={(imageUrls) => setNewProduct({ ...newProduct, images: imageUrls })}
+                    maxImages={5}
+                  />
+                </div>
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setShowCreateProduct(false)}>
