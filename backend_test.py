@@ -23,6 +23,8 @@ load_dotenv()
 NEXT_PUBLIC_BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'http://localhost:3000')
 BASE_URL = f"{NEXT_PUBLIC_BASE_URL}/api"
 
+print(f"Using base URL: {BASE_URL}")  # Debug print
+
 class ShopifyCloneAPITester:
     def __init__(self):
         self.base_url = BASE_URL
