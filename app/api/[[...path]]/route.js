@@ -416,6 +416,113 @@ export async function POST(request) {
         }
         break;
 
+      case 'payment':
+        if (subResource === 'create-order') {
+          // POST /api/payment/create-order - Create Razorpay order
+          const { amount, currency = "INR", receipt, notes, storeId } = body;
+          
+          if (!amount || !receipt) {
+            return NextResponse.json({ 
+              error: 'Amount and receipt are required' 
+            }, { status: 400 });
+          }
+
+          try {
+            // Initialize Razorpay
+            const razorpay = new Razorpay({
+              key_id: process.env.RAZORPAY_KEY_ID,
+              key_secret: process.env.RAZORPAY_KEY_SECRET,
+            });
+
+            // Create order
+            const order = await razorpay.orders.create({
+              amount: Math.round(amount * 100), // Convert to paise
+              currency,
+              receipt,
+              notes: {
+                ...notes,
+                storeId
+              },
+              payment_capture: 1, // Auto-capture payment
+            });
+
+            return NextResponse.json({ 
+              success: true, 
+              order 
+            });
+          } catch (error) {
+            console.error("Error creating Razorpay order:", error);
+            return NextResponse.json(
+              { success: false, error: error.message },
+              { status: 500 }
+            );
+          }
+        } else if (subResource === 'verify') {
+          // POST /api/payment/verify - Verify payment
+          const { 
+            razorpay_order_id, 
+            razorpay_payment_id, 
+            razorpay_signature,
+            orderId,
+            storeId
+          } = body;
+
+          if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+            return NextResponse.json({ 
+              error: 'Missing payment verification parameters' 
+            }, { status: 400 });
+          }
+
+          try {
+            // Verify signature
+            const generatedSignature = crypto
+              .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+              .update(razorpay_order_id + '|' + razorpay_payment_id)
+              .digest('hex');
+
+            if (generatedSignature !== razorpay_signature) {
+              return NextResponse.json(
+                { success: false, error: 'Invalid payment signature' },
+                { status: 400 }
+              );
+            }
+
+            // Update order status in database
+            const database = await connectToDatabase();
+            const result = await database.collection('orders').updateOne(
+              { id: orderId, storeId },
+              { 
+                $set: { 
+                  status: 'paid',
+                  paymentStatus: 'completed',
+                  razorpayOrderId: razorpay_order_id,
+                  razorpayPaymentId: razorpay_payment_id,
+                  paymentCompletedAt: new Date(),
+                  updatedAt: new Date()
+                } 
+              }
+            );
+
+            if (result.matchedCount === 0) {
+              return NextResponse.json({ 
+                error: 'Order not found' 
+              }, { status: 404 });
+            }
+
+            return NextResponse.json({ 
+              success: true,
+              message: 'Payment verified successfully' 
+            });
+          } catch (error) {
+            console.error("Error verifying payment:", error);
+            return NextResponse.json(
+              { success: false, error: error.message },
+              { status: 500 }
+            );
+          }
+        }
+        break;
+
       default:
         return NextResponse.json({ error: 'Endpoint not found' }, { status: 404 });
     }
