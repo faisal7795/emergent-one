@@ -332,6 +332,23 @@ export default function StorefrontPage() {
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredProducts.map((product) => (
               <Card key={product.id} className="h-full flex flex-col">
+                {product.images && product.images.length > 0 && (
+                  <div className="aspect-square relative overflow-hidden rounded-t-lg">
+                    <img
+                      src={product.images[0]}
+                      alt={product.name}
+                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        e.target.src = '/placeholder-image.jpg';
+                      }}
+                    />
+                    {product.images.length > 1 && (
+                      <div className="absolute bottom-2 right-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
+                        +{product.images.length - 1}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <CardHeader>
                   <CardTitle className="text-base line-clamp-2">{product.name}</CardTitle>
                   {product.description && (
