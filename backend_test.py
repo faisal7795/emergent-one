@@ -1219,6 +1219,12 @@ class ShopifyCloneAPITester:
         # Test Image Upload Functionality
         test_results['image_upload'] = self.test_image_upload_functionality()
         
+        # Test Razorpay Payment Integration
+        test_results['razorpay_payment'] = self.test_razorpay_payment_integration()
+        
+        # Test Analytics Dashboard API
+        test_results['analytics_dashboard'] = self.test_analytics_dashboard_api()
+        
         # Summary
         self.log("=" * 60)
         self.log("TEST RESULTS SUMMARY:")
