@@ -596,7 +596,7 @@ export async function POST(request) {
               { status: 500 }
             );
           }
-        } else if (subResource === 'verify') {
+        } else if (storeId === 'verify') {
           // POST /api/payment/verify - Verify payment
           const { 
             razorpay_order_id, 
