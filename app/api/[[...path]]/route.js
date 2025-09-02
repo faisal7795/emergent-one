@@ -556,7 +556,7 @@ export async function POST(request) {
         break;
 
       case 'payment':
-        if (subResource === 'create-order') {
+        if (storeId === 'create-order') {
           // POST /api/payment/create-order - Create Razorpay order
           const { amount, currency = "INR", receipt, notes, storeId } = body;
           
