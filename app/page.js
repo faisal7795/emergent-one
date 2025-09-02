@@ -416,7 +416,7 @@ function ProductManagement({ storeId }) {
       if (response.ok) {
         const createdProduct = await response.json();
         setProducts([createdProduct, ...products]);
-        setNewProduct({ name: '', description: '', price: '', inventory: '' });
+        setNewProduct({ name: '', description: '', price: '', inventory: '', images: [] });
         setShowCreateProduct(false);
         toast.success('Product created successfully!');
       } else {
