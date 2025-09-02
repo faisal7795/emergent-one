@@ -8,6 +8,8 @@ import requests
 import json
 import uuid
 import time
+import io
+import os
 from typing import Dict, List, Any
 
 # Configuration
