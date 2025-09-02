@@ -748,4 +748,181 @@ function StoreSettings({ store }) {
   );
 }
 
+// Analytics Dashboard Component
+function AnalyticsDashboard({ storeId }) {
+  const [analytics, setAnalytics] = useState({
+    summary: {
+      totalOrders: 0,
+      totalRevenue: 0,
+      completedOrders: 0,
+      pendingOrders: 0,
+      totalProducts: 0,
+      conversionRate: 0
+    },
+    topProducts: [],
+    recentOrders: [],
+    chartData: []
+  });
+  const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState('30');
+
+  useEffect(() => {
+    loadAnalytics();
+  }, [storeId, period]);
+
+  const loadAnalytics = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/analytics/${storeId}?period=${period}`);
+      if (response.ok) {
+        const data = await response.json();
+        setAnalytics(data);
+      }
+    } catch (error) {
+      console.error('Error loading analytics:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-center py-8">Loading analytics...</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Analytics Dashboard</h3>
+        <select
+          value={period}
+          onChange={(e) => setPeriod(e.target.value)}
+          className="px-3 py-2 border rounded-md bg-background"
+        >
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+      </div>
+
+      {/* Key Metrics */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">₹{analytics.summary.totalRevenue.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground">
+              From {analytics.summary.completedOrders} completed orders
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{analytics.summary.totalOrders}</div>
+            <p className="text-xs text-muted-foreground">
+              {analytics.summary.pendingOrders} pending
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Products</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{analytics.summary.totalProducts}</div>
+            <p className="text-xs text-muted-foreground">Active products</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Conversion Rate</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{analytics.summary.conversionRate}%</div>
+            <p className="text-xs text-muted-foreground">Orders to completion</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Top Products */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Products</CardTitle>
+            <CardDescription>Best selling products by quantity</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {analytics.topProducts.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">No sales data yet</p>
+            ) : (
+              <div className="space-y-3">
+                {analytics.topProducts.map((product, index) => (
+                  <div key={product._id} className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium">{product.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {product.totalQuantity} sold
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">₹{product.totalRevenue.toFixed(2)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Orders</CardTitle>
+            <CardDescription>Latest customer orders</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {analytics.recentOrders.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">No orders yet</p>
+            ) : (
+              <div className="space-y-3">
+                {analytics.recentOrders.map((order) => (
+                  <div key={order.id} className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">#{order.orderNumber}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {order.customerInfo?.name || 'Guest'} • {new Date(order.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">₹{order.total.toFixed(2)}</p>
+                      <Badge variant={order.status === 'paid' ? 'default' : 'secondary'}>
+                        {order.status}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 export default App;
