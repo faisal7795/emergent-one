@@ -209,14 +209,15 @@ export async function POST(request) {
           const formData = await request.formData();
           const files = formData.getAll('images');
           
-          if (!files || files.length === 0) {
+          // Check if no files or all files are empty
+          if (!files || files.length === 0 || files.every(file => !file || file.size === 0)) {
             return NextResponse.json({ error: 'No files uploaded' }, { status: 400 });
           }
           
           const uploadedImages = [];
           
           for (const file of files) {
-            if (file.size === 0) continue;
+            if (!file || file.size === 0) continue;
             
             // Generate unique filename
             const timestamp = Date.now();
