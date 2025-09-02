@@ -122,7 +122,10 @@ export default function StorefrontPage() {
         quantity: item.quantity
       }));
 
-      const response = await fetch(`/api/orders/${store.id}`, {
+      const totalAmount = parseFloat(getCartTotal());
+
+      // First create the order in the database
+      const orderResponse = await fetch(`/api/orders/${store.id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -130,24 +133,125 @@ export default function StorefrontPage() {
         body: JSON.stringify({
           items: orderItems,
           customerInfo,
-          total: parseFloat(getCartTotal())
+          total: totalAmount
         }),
       });
 
-      if (response.ok) {
-        const order = await response.json();
-        setCart([]);
-        setCustomerInfo({ name: '', email: '', phone: '' });
-        setShowCart(false);
-        toast.success(`Order placed successfully! Order #${order.orderNumber}`);
-      } else {
-        const error = await response.json();
-        toast.error(error.error || 'Failed to place order');
+      if (!orderResponse.ok) {
+        const error = await orderResponse.json();
+        toast.error(error.error || 'Failed to create order');
+        return;
       }
+
+      const order = await orderResponse.json();
+
+      // Create Razorpay order
+      const paymentResponse = await fetch('/api/payment/create-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: totalAmount,
+          currency: 'INR',
+          receipt: order.orderNumber,
+          notes: {
+            orderId: order.id,
+            customerEmail: customerInfo.email,
+            storeId: store.id
+          },
+          storeId: store.id
+        }),
+      });
+
+      if (!paymentResponse.ok) {
+        toast.error('Failed to initialize payment');
+        return;
+      }
+
+      const paymentData = await paymentResponse.json();
+
+      if (!paymentData.success) {
+        toast.error(paymentData.error || 'Failed to initialize payment');
+        return;
+      }
+
+      // Load Razorpay script and initialize payment
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => initializeRazorpay(paymentData.order, order);
+      script.onerror = () => {
+        toast.error('Failed to load payment gateway');
+      };
+      document.body.appendChild(script);
+
     } catch (error) {
-      console.error('Error placing order:', error);
-      toast.error('Error placing order');
+      console.error('Error during checkout:', error);
+      toast.error('Error during checkout');
     }
+  };
+
+  const initializeRazorpay = (razorpayOrder, dbOrder) => {
+    const options = {
+      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency,
+      name: store.name,
+      description: `Order #${dbOrder.orderNumber}`,
+      order_id: razorpayOrder.id,
+      prefill: {
+        name: customerInfo.name,
+        email: customerInfo.email,
+        contact: customerInfo.phone
+      },
+      theme: {
+        color: '#3b82f6'
+      },
+      handler: async function (response) {
+        try {
+          // Verify payment on server
+          const verifyResponse = await fetch('/api/payment/verify', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              orderId: dbOrder.id,
+              storeId: store.id
+            }),
+          });
+
+          const verifyData = await verifyResponse.json();
+
+          if (verifyData.success) {
+            // Clear cart and show success
+            setCart([]);
+            setCustomerInfo({ name: '', email: '', phone: '' });
+            setShowCart(false);
+            toast.success(`Payment successful! Order #${dbOrder.orderNumber}`, {
+              duration: 5000,
+            });
+          } else {
+            toast.error('Payment verification failed');
+          }
+        } catch (error) {
+          console.error('Payment verification error:', error);
+          toast.error('Payment verification failed');
+        }
+      },
+      modal: {
+        ondismiss: function() {
+          toast.info('Payment cancelled');
+        }
+      }
+    };
+
+    const razorpay = new window.Razorpay(options);
+    razorpay.open();
   };
 
   const filteredProducts = products.filter(product =>
