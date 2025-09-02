@@ -247,6 +247,7 @@ function App() {
 
                 <TabsContent value="overview" className="space-y-6">
                   <StoreOverview storeId={selectedStore.id} />
+                  <AnalyticsDashboard storeId={selectedStore.id} />
                 </TabsContent>
 
                 <TabsContent value="products" className="space-y-6">
