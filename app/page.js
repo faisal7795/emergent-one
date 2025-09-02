@@ -557,6 +557,23 @@ function ProductManagement({ storeId }) {
           {products.map((product) => (
             <Card key={product.id}>
               <CardHeader>
+                {product.images && product.images.length > 0 && (
+                  <div className="aspect-square relative mb-4 rounded-md overflow-hidden">
+                    <img
+                      src={product.images[0]}
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src = '/placeholder-image.jpg';
+                      }}
+                    />
+                    {product.images.length > 1 && (
+                      <div className="absolute bottom-2 right-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
+                        +{product.images.length - 1} more
+                      </div>
+                    )}
+                  </div>
+                )}
                 <CardTitle className="text-base">{product.name}</CardTitle>
                 <CardDescription>{product.description}</CardDescription>
               </CardHeader>
@@ -569,6 +586,7 @@ function ProductManagement({ storeId }) {
                 </div>
                 <div className="flex space-x-2">
                   <Button variant="outline" size="sm" className="flex-1">
+                    <Edit className="h-4 w-4 mr-1" />
                     Edit
                   </Button>
                   <Button 
@@ -576,7 +594,7 @@ function ProductManagement({ storeId }) {
                     size="sm"
                     onClick={() => deleteProduct(product.id)}
                   >
-                    Delete
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>
