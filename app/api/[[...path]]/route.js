@@ -41,6 +41,8 @@ export async function GET(request) {
   const { pathname } = new URL(request.url);
   const segments = pathname.split('/').filter(Boolean);
   
+  console.log(`GET Request - pathname: ${pathname}, segments:`, segments);
+  
   try {
     const database = await connectToDatabase();
     
@@ -52,15 +54,19 @@ export async function GET(request) {
     const apiPath = segments.slice(1); // Remove 'api' segment
     const [resource, storeId, subResource, itemId] = apiPath;
     
+    console.log(`API Path parsing - resource: ${resource}, storeId: ${storeId}, subResource: ${subResource}`);
+    
     switch (resource) {
       case 'stores':
         if (!storeId) {
           // GET /api/stores - List all stores
+          console.log('Fetching all stores...');
           const stores = await database.collection('stores')
             .find({ isActive: true })
             .sort({ createdAt: -1 })
             .toArray();
           
+          console.log(`Found ${stores.length} stores`);
           return NextResponse.json(stores);
         } else {
           // GET /api/stores/:id - Get specific store
