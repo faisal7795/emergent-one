@@ -336,7 +336,9 @@ test_plan:
     status_history:
       - working: true
         agent: "main"
-        comment: "Complete Razorpay checkout integration with order creation, payment modal, verification, and success handling."
+agent_communication:
+  - agent: "main"
+    message: "MAJOR UPDATE: Enhanced Shopify clone with advanced features - Image uploads with local storage, Razorpay payment integration with test keys, and comprehensive analytics dashboard. All core e-commerce features complete: multi-tenant stores, product CRUD with images, secure payments, order management, customer analytics. Ready for comprehensive testing of enhanced features."
   - agent: "testing"
     message: "🎉 BACKEND TESTING COMPLETE - ALL TESTS PASSED! Comprehensive testing of all backend APIs completed successfully. All 6 test suites passed: API Health ✅, Store Management ✅, Product CRUD ✅, Order Management ✅, Storefront API ✅, Multi-Tenancy ✅. The Shopify clone backend is fully functional with proper multi-tenant isolation, data validation, error handling, and all CRUD operations working correctly. Ready for production use."
   - agent: "main"
