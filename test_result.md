@@ -180,6 +180,21 @@ backend:
         agent: "testing"
         comment: "✅ TESTED AND WORKING: Storefront API GET /api/storefront/{slug} returns complete store data with products. Proper 404 handling for non-existent stores. Data structure includes both store information and associated products."
 
+  - task: "Image Upload API"
+    implemented: true
+    working: true
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Image upload functionality added with POST /api/upload/{storeId} endpoint. Supports multiple file uploads with proper validation and storage."
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE IMAGE UPLOAD TESTING PASSED: All image upload functionality verified. Single and multiple file uploads working. Multi-store isolation confirmed - images stored with store ID prefix. File validation working (empty files rejected). Product creation with uploaded images verified. Images properly displayed in product listings and storefront. File storage structure correct with unique naming convention including store ID, timestamp, and random string."
+
 frontend:
   - task: "Admin Dashboard UI"
     implemented: true
