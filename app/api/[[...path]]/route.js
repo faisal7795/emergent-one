@@ -338,11 +338,15 @@ export async function POST(request) {
   const apiPath = segments.slice(1); // Remove 'api' segment
   const [resource, storeId, subResource] = apiPath;
   
+  console.log(`POST Request - pathname: ${pathname}, segments:`, segments);
+  console.log(`POST API Path parsing - resource: ${resource}, storeId: ${storeId}, subResource: ${subResource}`);
+  
   try {
     const database = await connectToDatabase();
     
     // Handle upload endpoint differently (form data instead of JSON)
     if (resource === 'upload') {
+      console.log('Handling file upload...');
       if (storeId) {
         // POST /api/upload/:storeId - Upload images for store
         
