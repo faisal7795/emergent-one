@@ -276,10 +276,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Multi-tenant API with MongoDB"
-    - "Store Management API"
-    - "Product CRUD API"
-    - "Order Management API"
+    - "Image Upload API"
   stuck_tasks: []
   test_all: true
   test_priority: "high_first"
@@ -289,3 +286,7 @@ agent_communication:
     message: "Implemented complete Shopify clone MVP with multi-tenant architecture, admin dashboard, and public storefront. Core features working: store creation, product CRUD, order management, shopping cart. Ready for comprehensive testing."
   - agent: "testing"
     message: "🎉 BACKEND TESTING COMPLETE - ALL TESTS PASSED! Comprehensive testing of all backend APIs completed successfully. All 6 test suites passed: API Health ✅, Store Management ✅, Product CRUD ✅, Order Management ✅, Storefront API ✅, Multi-Tenancy ✅. The Shopify clone backend is fully functional with proper multi-tenant isolation, data validation, error handling, and all CRUD operations working correctly. Ready for production use."
+  - agent: "main"
+    message: "Added image upload functionality with POST /api/upload/{storeId} endpoint. Supports multiple file uploads, proper validation, and multi-store isolation."
+  - agent: "testing"
+    message: "🎉 IMAGE UPLOAD TESTING COMPLETE - ALL TESTS PASSED! Comprehensive testing of image upload functionality completed successfully. All 7 test suites passed including new Image Upload ✅. Key features verified: Single/multiple file uploads, multi-store isolation, file validation, product integration, storefront display, proper file storage structure. The image upload system is fully functional and ready for production use."
