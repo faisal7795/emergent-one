@@ -10,7 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Store, Plus, Package, ShoppingCart, BarChart3, Settings, ExternalLink } from 'lucide-react';
+import { Store, Plus, Package, ShoppingCart, BarChart3, Settings, ExternalLink, Image as ImageIcon, Edit, Trash2 } from 'lucide-react';
+import ImageUpload from '@/components/ImageUpload';
 
 function App() {
   const [stores, setStores] = useState([]);
