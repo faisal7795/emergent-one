@@ -292,6 +292,28 @@ export async function GET(request) {
         }
         break;
         
+      case 'storefront':
+        if (storeId) {
+          // GET /api/storefront/:storeSlug - Get storefront data
+          const store = await database.collection('stores').findOne({ 
+            slug: storeId, // Using storeId as slug here
+            isActive: true 
+          });
+          
+          if (!store) {
+            return NextResponse.json({ error: 'Store not found' }, { status: 404 });
+          }
+          
+          const products = await database.collection('products')
+            .find({ storeId: store.id, isActive: true })
+            .sort({ createdAt: -1 })
+            .limit(20)
+            .toArray();
+          
+          return NextResponse.json({ store, products });
+        }
+        break;
+        
       default:
         return NextResponse.json({ error: 'Endpoint not found' }, { status: 404 });
     }
