@@ -629,6 +629,250 @@ class ShopifyCloneAPITester:
         
         return True
     
+    def create_test_image(self, filename: str = "test_image.jpg", size: tuple = (100, 100)) -> bytes:
+        """Create a simple test image in memory"""
+        try:
+            from PIL import Image
+            # Create a simple colored image
+            img = Image.new('RGB', size, color='red')
+            img_bytes = io.BytesIO()
+            img.save(img_bytes, format='JPEG')
+            return img_bytes.getvalue()
+        except ImportError:
+            # Fallback: create a minimal JPEG header for testing
+            # This is a minimal valid JPEG file (1x1 pixel)
+            return bytes([
+                0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
+                0x01, 0x01, 0x00, 0x48, 0x00, 0x48, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43,
+                0x00, 0x08, 0x06, 0x06, 0x07, 0x06, 0x05, 0x08, 0x07, 0x07, 0x07, 0x09,
+                0x09, 0x08, 0x0A, 0x0C, 0x14, 0x0D, 0x0C, 0x0B, 0x0B, 0x0C, 0x19, 0x12,
+                0x13, 0x0F, 0x14, 0x1D, 0x1A, 0x1F, 0x1E, 0x1D, 0x1A, 0x1C, 0x1C, 0x20,
+                0x24, 0x2E, 0x27, 0x20, 0x22, 0x2C, 0x23, 0x1C, 0x1C, 0x28, 0x37, 0x29,
+                0x2C, 0x30, 0x31, 0x34, 0x34, 0x34, 0x1F, 0x27, 0x39, 0x3D, 0x38, 0x32,
+                0x3C, 0x2E, 0x33, 0x34, 0x32, 0xFF, 0xC0, 0x00, 0x11, 0x08, 0x00, 0x01,
+                0x00, 0x01, 0x01, 0x01, 0x11, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01,
+                0xFF, 0xC4, 0x00, 0x14, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0xFF, 0xC4,
+                0x00, 0x14, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xDA, 0x00, 0x0C,
+                0x03, 0x01, 0x00, 0x02, 0x11, 0x03, 0x11, 0x00, 0x3F, 0x00, 0xB2, 0xC0,
+                0x07, 0xFF, 0xD9
+            ])
+    
+    def make_upload_request(self, endpoint: str, files: Dict, data: Dict = None) -> Dict:
+        """Make file upload request with multipart/form-data"""
+        url = f"{self.base_url}{endpoint}"
+        
+        try:
+            # Remove Content-Type header for multipart requests
+            headers = {k: v for k, v in self.session.headers.items() if k.lower() != 'content-type'}
+            
+            response = requests.post(url, files=files, data=data, headers=headers)
+            
+            self.log(f"POST {endpoint} (upload) -> Status: {response.status_code}")
+            
+            if response.headers.get('content-type', '').startswith('application/json'):
+                return {
+                    'status_code': response.status_code,
+                    'data': response.json(),
+                    'success': 200 <= response.status_code < 300
+                }
+            else:
+                return {
+                    'status_code': response.status_code,
+                    'data': response.text,
+                    'success': 200 <= response.status_code < 300
+                }
+                
+        except requests.exceptions.RequestException as e:
+            self.log(f"Upload request failed: {str(e)}", "ERROR")
+            return {
+                'status_code': 0,
+                'data': {'error': str(e)},
+                'success': False
+            }
+    
+    def test_image_upload_functionality(self) -> bool:
+        """Test comprehensive image upload functionality"""
+        self.log("Testing Image Upload Functionality...")
+        
+        if len(self.test_stores) < 2:
+            self.log("❌ Need at least 2 stores for image upload testing", "ERROR")
+            return False
+            
+        store1_id = self.test_stores[0]['id']
+        store2_id = self.test_stores[1]['id']
+        
+        # Test 1: Single image upload
+        self.log("Testing single image upload...")
+        test_image1 = self.create_test_image("test1.jpg")
+        
+        files = {
+            'images': ('test1.jpg', io.BytesIO(test_image1), 'image/jpeg')
+        }
+        
+        result = self.make_upload_request(f'/upload/{store1_id}', files)
+        if not result['success']:
+            self.log("❌ Single image upload failed", "ERROR")
+            return False
+            
+        upload_response = result['data']
+        if 'images' not in upload_response or len(upload_response['images']) != 1:
+            self.log("❌ Upload response should contain images array", "ERROR")
+            return False
+            
+        uploaded_image = upload_response['images'][0]
+        if 'url' not in uploaded_image or 'filename' not in uploaded_image:
+            self.log("❌ Uploaded image should have url and filename", "ERROR")
+            return False
+            
+        self.log(f"✅ Single image uploaded: {uploaded_image['filename']}")
+        
+        # Test 2: Multiple image upload
+        self.log("Testing multiple image upload...")
+        test_image2 = self.create_test_image("test2.jpg")
+        test_image3 = self.create_test_image("test3.png")
+        
+        files = [
+            ('images', ('test2.jpg', io.BytesIO(test_image2), 'image/jpeg')),
+            ('images', ('test3.png', io.BytesIO(test_image3), 'image/png'))
+        ]
+        
+        result = self.make_upload_request(f'/upload/{store1_id}', files)
+        if not result['success']:
+            self.log("❌ Multiple image upload failed", "ERROR")
+            return False
+            
+        upload_response = result['data']
+        if len(upload_response['images']) != 2:
+            self.log("❌ Multiple upload should return 2 images", "ERROR")
+            return False
+            
+        self.log("✅ Multiple images uploaded successfully")
+        
+        # Test 3: Upload to different store (multi-store isolation)
+        self.log("Testing multi-store image isolation...")
+        test_image4 = self.create_test_image("store2_test.jpg")
+        
+        files = {
+            'images': ('store2_test.jpg', io.BytesIO(test_image4), 'image/jpeg')
+        }
+        
+        result = self.make_upload_request(f'/upload/{store2_id}', files)
+        if not result['success']:
+            self.log("❌ Upload to second store failed", "ERROR")
+            return False
+            
+        store2_upload = result['data']['images'][0]
+        
+        # Verify filename contains store ID for isolation
+        if store2_id not in store2_upload['filename']:
+            self.log("❌ Uploaded filename should contain store ID for isolation", "ERROR")
+            return False
+            
+        self.log("✅ Multi-store image isolation verified")
+        
+        # Test 4: Upload validation - no files
+        self.log("Testing upload validation - no files...")
+        result = self.make_upload_request(f'/upload/{store1_id}', {})
+        if result['status_code'] != 400:
+            self.log("❌ Upload with no files should return 400", "ERROR")
+            return False
+            
+        self.log("✅ No files upload properly rejected")
+        
+        # Test 5: Upload to non-existent store
+        self.log("Testing upload to non-existent store...")
+        fake_store_id = str(uuid.uuid4())
+        files = {
+            'images': ('test.jpg', io.BytesIO(test_image1), 'image/jpeg')
+        }
+        
+        result = self.make_upload_request(f'/upload/{fake_store_id}', files)
+        if result['status_code'] != 404:
+            self.log("❌ Upload to non-existent store should return 404", "ERROR")
+            return False
+            
+        self.log("✅ Upload to non-existent store properly rejected")
+        
+        # Test 6: Create product with uploaded images
+        self.log("Testing product creation with uploaded images...")
+        product_data = {
+            "name": "Product with Images",
+            "description": "A product that has uploaded images",
+            "price": 199.99,
+            "inventory": 10,
+            "images": [uploaded_image['url']]  # Use uploaded image URL
+        }
+        
+        result = self.make_request('POST', f'/products/{store1_id}', product_data)
+        if not result['success']:
+            self.log("❌ Product creation with images failed", "ERROR")
+            return False
+            
+        product_with_images = result['data']
+        if 'images' not in product_with_images or len(product_with_images['images']) != 1:
+            self.log("❌ Product should have images array", "ERROR")
+            return False
+            
+        self.log("✅ Product created with uploaded images")
+        
+        # Test 7: Verify product images in product listing
+        self.log("Testing product images in listing...")
+        result = self.make_request('GET', f'/products/{store1_id}')
+        if not result['success']:
+            self.log("❌ Product listing failed", "ERROR")
+            return False
+            
+        products = result['data']['products']
+        product_found = False
+        for product in products:
+            if product['id'] == product_with_images['id']:
+                if 'images' in product and len(product['images']) > 0:
+                    product_found = True
+                    break
+                    
+        if not product_found:
+            self.log("❌ Product with images not found in listing", "ERROR")
+            return False
+            
+        self.log("✅ Product images verified in listing")
+        
+        # Test 8: Verify images in storefront
+        self.log("Testing images in storefront...")
+        store_slug = self.test_stores[0]['slug']
+        result = self.make_request('GET', f'/storefront/{store_slug}')
+        if not result['success']:
+            self.log("❌ Storefront retrieval failed", "ERROR")
+            return False
+            
+        storefront_data = result['data']
+        storefront_products = storefront_data['products']
+        
+        product_with_images_found = False
+        for product in storefront_products:
+            if product['id'] == product_with_images['id']:
+                if 'images' in product and len(product['images']) > 0:
+                    product_with_images_found = True
+                    break
+                    
+        if not product_with_images_found:
+            self.log("❌ Product with images not found in storefront", "ERROR")
+            return False
+            
+        self.log("✅ Product images verified in storefront")
+        
+        # Test 9: File storage structure verification
+        self.log("Testing file storage structure...")
+        # Check if files are stored with proper naming convention
+        if not (store1_id in uploaded_image['filename'] and '_' in uploaded_image['filename']):
+            self.log("❌ File naming convention should include store ID and timestamp", "ERROR")
+            return False
+                
+        self.log("✅ File storage structure verified")
+        
+        return True
+    
     def run_all_tests(self) -> Dict[str, bool]:
         """Run all backend tests and return results"""
         self.log("Starting Comprehensive Backend API Tests...")
