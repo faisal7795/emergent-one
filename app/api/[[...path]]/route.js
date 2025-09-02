@@ -347,6 +347,68 @@ export async function POST(request) {
         }
         break;
         
+      case 'upload':
+        if (storeId) {
+          // POST /api/upload/:storeId - Upload images for store
+          
+          // Validate store exists
+          const storeExists = await validateStoreAccess(storeId);
+          if (!storeExists) {
+            return NextResponse.json({ error: 'Store not found' }, { status: 404 });
+          }
+          
+          try {
+            const formData = await request.formData();
+            const files = formData.getAll('images');
+            
+            if (!files || files.length === 0) {
+              return NextResponse.json({ error: 'No files uploaded' }, { status: 400 });
+            }
+            
+            const uploadedImages = [];
+            
+            for (const file of files) {
+              if (file.size === 0) continue;
+              
+              // Generate unique filename
+              const timestamp = Date.now();
+              const fileExtension = file.name.split('.').pop();
+              const fileName = `${storeId}_${timestamp}_${Math.random().toString(36).substring(7)}.${fileExtension}`;
+              
+              // Create upload path
+              const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+              const filePath = path.join(uploadDir, fileName);
+              
+              // Ensure upload directory exists
+              await mkdir(uploadDir, { recursive: true });
+              
+              // Convert file to buffer and save
+              const bytes = await file.arrayBuffer();
+              const buffer = Buffer.from(bytes);
+              await writeFile(filePath, buffer);
+              
+              // Store image info
+              const imageUrl = `/uploads/${fileName}`;
+              uploadedImages.push({
+                url: imageUrl,
+                filename: fileName,
+                originalName: file.name,
+                size: file.size
+              });
+            }
+            
+            return NextResponse.json({ 
+              success: true, 
+              images: uploadedImages 
+            }, { status: 201 });
+            
+          } catch (error) {
+            console.error('File upload error:', error);
+            return NextResponse.json({ error: 'File upload failed' }, { status: 500 });
+          }
+        }
+        break;
+
       default:
         return NextResponse.json({ error: 'Endpoint not found' }, { status: 404 });
     }
