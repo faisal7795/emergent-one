@@ -46,9 +46,13 @@ export async function GET(request) {
   try {
     const database = await connectToDatabase();
     
-    // Root API endpoint
-    if (segments.length <= 1) {
-      return NextResponse.json({ message: 'Shopify Clone API Ready' });
+    // Root API endpoint - simple health check
+    if (segments.length <= 1 || (segments.length === 2 && segments[1] === 'health')) {
+      return NextResponse.json({ 
+        message: 'Shopify Clone API Ready',
+        timestamp: new Date().toISOString(),
+        path: pathname
+      });
     }
     
     const apiPath = segments.slice(1); // Remove 'api' segment
