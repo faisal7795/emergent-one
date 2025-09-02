@@ -86,10 +86,11 @@ class ShopifyCloneAPITester:
         self.log("Testing Store Management APIs...")
         
         # Test store creation
+        timestamp = int(time.time())
         store_data = {
-            "name": "Test Electronics Store",
+            "name": f"Test Electronics Store {timestamp}",
             "description": "A test store for electronics and gadgets",
-            "domain": "electronics-test.com"
+            "domain": f"electronics-test-{timestamp}.com"
         }
         
         result = self.make_request('POST', '/stores', store_data)
