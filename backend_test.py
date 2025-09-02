@@ -111,9 +111,9 @@ class ShopifyCloneAPITester:
         
         # Create second store for multi-tenancy testing
         store_data2 = {
-            "name": "Test Fashion Boutique",
+            "name": f"Test Fashion Boutique {timestamp}",
             "description": "A test store for fashion items",
-            "domain": "fashion-test.com"
+            "domain": f"fashion-test-{timestamp}.com"
         }
         
         result = self.make_request('POST', '/stores', store_data2)
