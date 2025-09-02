@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { MongoClient, ObjectId } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
+import { writeFile, mkdir } from 'fs/promises';
+import path from 'path';
 
 let client = null;
 let db = null;
