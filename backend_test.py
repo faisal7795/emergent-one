@@ -19,8 +19,8 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# For testing, use localhost since external URL might not be accessible
-BASE_URL = "http://localhost:3000/api"
+# Use external URL from environment for testing
+BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'http://localhost:3000') + '/api'
 
 print(f"Using base URL: {BASE_URL}")  # Debug print
 
