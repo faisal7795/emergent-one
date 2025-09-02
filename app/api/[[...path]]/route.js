@@ -153,25 +153,142 @@ export async function GET(request) {
         }
         break;
         
-      case 'storefront':
+      case 'analytics':
         if (storeId) {
-          // GET /api/storefront/:storeSlug - Get storefront data
-          const store = await database.collection('stores').findOne({ 
-            slug: storeId, // Using storeId as slug here
-            isActive: true 
-          });
+          // GET /api/analytics/:storeId - Get analytics data for store
+          const { searchParams } = new URL(request.url);
+          const period = searchParams.get('period') || '30'; // days
           
-          if (!store) {
+          // Validate store exists
+          const storeExists = await validateStoreAccess(storeId);
+          if (!storeExists) {
             return NextResponse.json({ error: 'Store not found' }, { status: 404 });
           }
           
-          const products = await database.collection('products')
-            .find({ storeId: store.id, isActive: true })
-            .sort({ createdAt: -1 })
-            .limit(20)
-            .toArray();
+          const daysAgo = parseInt(period);
+          const startDate = new Date();
+          startDate.setDate(startDate.getDate() - daysAgo);
           
-          return NextResponse.json({ store, products });
+          const [
+            totalOrders,
+            totalRevenue,
+            completedOrders,
+            pendingOrders,
+            totalProducts,
+            topProducts,
+            recentOrders,
+            dailySales
+          ] = await Promise.all([
+            // Total orders
+            database.collection('orders').countDocuments({ 
+              storeId,
+              createdAt: { $gte: startDate }
+            }),
+            
+            // Total revenue (completed orders only)
+            database.collection('orders').aggregate([
+              { 
+                $match: { 
+                  storeId,
+                  status: { $in: ['paid', 'completed'] },
+                  createdAt: { $gte: startDate }
+                }
+              },
+              { $group: { _id: null, total: { $sum: '$total' } } }
+            ]).toArray(),
+            
+            // Completed orders count
+            database.collection('orders').countDocuments({ 
+              storeId,
+              status: { $in: ['paid', 'completed'] },
+              createdAt: { $gte: startDate }
+            }),
+            
+            // Pending orders count
+            database.collection('orders').countDocuments({ 
+              storeId,
+              status: 'pending',
+              createdAt: { $gte: startDate }
+            }),
+            
+            // Total products
+            database.collection('products').countDocuments({ 
+              storeId,
+              isActive: true
+            }),
+            
+            // Top products by quantity sold
+            database.collection('orders').aggregate([
+              { 
+                $match: { 
+                  storeId,
+                  status: { $in: ['paid', 'completed'] },
+                  createdAt: { $gte: startDate }
+                }
+              },
+              { $unwind: '$items' },
+              { 
+                $group: { 
+                  _id: '$items.productId',
+                  name: { $first: '$items.productName' },
+                  totalQuantity: { $sum: '$items.quantity' },
+                  totalRevenue: { $sum: { $multiply: ['$items.quantity', '$items.price'] } }
+                }
+              },
+              { $sort: { totalQuantity: -1 } },
+              { $limit: 5 }
+            ]).toArray(),
+            
+            // Recent orders
+            database.collection('orders')
+              .find({ storeId })
+              .sort({ createdAt: -1 })
+              .limit(10)
+              .toArray(),
+            
+            // Daily sales for chart
+            database.collection('orders').aggregate([
+              { 
+                $match: { 
+                  storeId,
+                  status: { $in: ['paid', 'completed'] },
+                  createdAt: { $gte: startDate }
+                }
+              },
+              {
+                $group: {
+                  _id: {
+                    year: { $year: '$createdAt' },
+                    month: { $month: '$createdAt' },
+                    day: { $dayOfMonth: '$createdAt' }
+                  },
+                  sales: { $sum: '$total' },
+                  orders: { $sum: 1 }
+                }
+              },
+              { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } }
+            ]).toArray()
+          ]);
+          
+          const analytics = {
+            summary: {
+              totalOrders,
+              totalRevenue: totalRevenue[0]?.total || 0,
+              completedOrders,
+              pendingOrders,
+              totalProducts,
+              conversionRate: totalOrders > 0 ? ((completedOrders / totalOrders) * 100).toFixed(1) : 0
+            },
+            topProducts,
+            recentOrders: recentOrders.slice(0, 5),
+            chartData: dailySales.map(item => ({
+              date: `${item._id.year}-${String(item._id.month).padStart(2, '0')}-${String(item._id.day).padStart(2, '0')}`,
+              sales: item.sales,
+              orders: item.orders
+            }))
+          };
+          
+          return NextResponse.json(analytics);
         }
         break;
         
