@@ -165,20 +165,41 @@ backend:
         agent: "testing"
         comment: "✅ FULLY VERIFIED: Order management working perfectly. Multi-item orders with automatic total calculation, product validation, customer info storage. Order status updates, filtering, and pagination working. Multi-tenancy confirmed - orders isolated per store. Cross-store product access properly blocked."
 
-  - task: "Storefront API"
+  - task: "Image Upload System"
+    implemented: true
+    working: true
+    file: "/app/app/api/[[...path]]/route.js, /app/components/ImageUpload.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Complete image upload system with file validation, local storage, and multi-store isolation. UI component integrated with product creation."
+
+  - task: "Razorpay Payment Integration"
+    implemented: true
+    working: true
+    file: "/app/app/api/[[...path]]/route.js, /app/app/store/[slug]/page.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Full Razorpay integration with order creation, payment verification, and secure checkout flow. Test keys configured for demo."
+
+  - task: "Analytics Dashboard API"
     implemented: true
     working: true
     file: "/app/app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: true
         agent: "main"
-        comment: "Public storefront API for displaying store and products by slug."
-      - working: true
-        agent: "testing"
-        comment: "✅ TESTED AND WORKING: Storefront API GET /api/storefront/{slug} returns complete store data with products. Proper 404 handling for non-existent stores. Data structure includes both store information and associated products."
+        comment: "Comprehensive analytics API with revenue tracking, top products, order metrics, and time-based filtering."
 
   - task: "Image Upload API"
     implemented: true
